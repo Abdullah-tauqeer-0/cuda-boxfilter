@@ -1,0 +1,49 @@
+{
+    // .vscode/launch.json
+    // Requires:
+    //   • ms-vscode.cpptools               (C/C++)
+    //   • nvidia.nsight-vscode-edition     (cuda-gdb support)
+    //   • tasks "build-cpu" and "build-gpu" in .vscode/tasks.json
+    "version": "0.2.0",
+    "configurations": [
+      /* -----------------------------------------------------------
+         CPU executable  (gdb)   -->  bin/box_filter_cpu
+      ----------------------------------------------------------- */
+      {
+        "name": "Run CPU Box Filter",
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "${workspaceFolder}/bin/box_filter_cpu",
+        "args": [
+          "7"                       // kernel size; change as needed
+        ],
+        "cwd": "${workspaceFolder}",
+        "stopAtEntry": false,
+        "preLaunchTask": "build-cpu",
+        "MIMode": "gdb",
+        "miDebuggerPath": "/usr/bin/gdb",
+        "setupCommands": [
+          { "description": "Enable pretty-printing",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true }
+        ]
+      },
+  
+      /* -----------------------------------------------------------
+         GPU executable (cuda-gdb) --> bin/box_filter_gpu
+      ----------------------------------------------------------- */
+      {
+        "name": "Run GPU Box Filter (cuda-gdb)",
+        "type": "cuda-gdb",
+        "request": "launch",
+        "program": "${workspaceFolder}/bin/box_filter_gpu",
+        "args": [
+          "7"
+        ],
+        "cwd": "${workspaceFolder}",
+        "stopAtEntry": false,
+        "preLaunchTask": "build-gpu"
+      }
+    ]
+  }
+  
