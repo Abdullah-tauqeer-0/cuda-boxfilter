@@ -14,5 +14,5 @@ Minimal step-by-step project that starts with a **CPU box filter** in plain C
 
 Place both headers in **`include/`** exactly as shown below.
 
-### Folder layout
+
 
