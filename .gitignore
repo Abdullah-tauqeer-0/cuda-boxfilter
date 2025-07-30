@@ -1,0 +1,25 @@
+# Build output
+bin/
+obj/
+build/
+*.o
+*.obj
+*.out
+*.exe
+*.a
+*.so
+*.dll
+*.dylib
+*.mod
+*.lib
+*.app
+*.log
+
+# CUDA compiler output
+*.cu.d
+*.ptx
+*.cubin
+
+# Editor backups / swap / autosave
+*~
+*.sw*

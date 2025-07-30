@@ -30,3 +30,9 @@ gpu: | $(BIN_DIR)
 
 clean:
 	rm -rf $(BIN_DIR)
+
+# -----------------------------------------------------------------
+# Convenience target so "make build" builds *both* binaries
+# -----------------------------------------------------------------
+.PHONY: build
+build: cpu gpu              # or just cpu    (pick what you want)

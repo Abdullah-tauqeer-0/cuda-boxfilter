@@ -1,88 +1,71 @@
-#define STB_IMAGE_IMPLEMENTATION
-#include "../include/stb_image.h"
+// mini_box_filter.cu
+// nvcc mini_box_filter.cu -o mini_blur
 
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "../include/stb_image_write.h"
-
-#include <stdio.h>
-#include <stdint.h>
 #include <cuda_runtime.h>
-#include "../src/utils.h"
+#include <cstdio>
 
-/* ---------- Simple CUDA kernel (naïve, no shared memory) ---------- */
+/* ------------------------------------------------------------------ */
+/*  CUDA KERNEL: naive 3×3 mean filter (grayscale, uint8_t pixels)    */
+/* ------------------------------------------------------------------ */
 __global__
-void box_filter_kernel(const uint8_t *in, uint8_t *out,
-                       int w, int h, int kernel, int half)
+void box3x3(const unsigned char* in, unsigned char* out,
+            int w, int h)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
-
     if (x >= w || y >= h) return;
 
-    int sum = 0, count = 0;
-    for (int ky = -half; ky <= half; ++ky) {
-        int yy = y + ky;
-        if (yy < 0 || yy >= h) continue;
-
-        for (int kx = -half; kx <= half; ++kx) {
-            int xx = x + kx;
-            if (xx < 0 || xx >= w) continue;
-
+    int sum = 0;
+    for (int dy = -1; dy <= 1; ++dy) {
+        int yy = min(max(y + dy, 0), h - 1);  // clamp
+        for (int dx = -1; dx <= 1; ++dx) {
+            int xx = min(max(x + dx, 0), w - 1);
             sum += in[yy * w + xx];
-            ++count;
         }
     }
-    out[y * w + x] = clamp_u8(sum / count);
+    out[y * w + x] = static_cast<unsigned char>(sum / 9);
 }
 
-/* ---------- Host wrapper ---------- */
-void box_filter_gpu(const uint8_t *h_in, uint8_t *h_out,
-                    int w, int h, int kernel)
+/* ------------------------------------------------------------------ */
+/*  MAIN: fill a toy 8×8 image, blur it on the GPU, print the result  */
+/* ------------------------------------------------------------------ */
+int main()
 {
-    size_t N = (size_t)w * h;
-    uint8_t *d_in, *d_out;
-    cudaMalloc(&d_in, N);
+    const int W = 80, H = 80;
+    const int N = W * H;
+
+    /* host buffers */
+    unsigned char h_in [N];
+    unsigned char h_out[N];
+
+    /* simple pattern: 0,1,2,… */
+    for (int i = 0; i < N; ++i) h_in[i] = static_cast<unsigned char>(i);
+
+    /* device buffers */
+    unsigned char *d_in, *d_out;
+    cudaMalloc(&d_in,  N);
     cudaMalloc(&d_out, N);
+
     cudaMemcpy(d_in, h_in, N, cudaMemcpyHostToDevice);
 
-    dim3 threads(16, 16);
-    dim3 blocks((w + threads.x - 1) / threads.x,
-                (h + threads.y - 1) / threads.y);
+    dim3 block(16, 16);
+    dim3 grid((W + block.x - 1) / block.x,
+              (H + block.y - 1) / block.y);
 
-    int half = kernel / 2;
-    box_filter_kernel<<<blocks, threads>>>(d_in, d_out, w, h, kernel, half);
+    box3x3<<<grid, block>>>(d_in, d_out, W, H);
+    cudaDeviceSynchronize();
+
     cudaMemcpy(h_out, d_out, N, cudaMemcpyDeviceToHost);
+
+    /* show the blurred image */
+    printf("Blurred 8×8 image (3×3 box):\n");
+    for (int y = 0; y < H; ++y) {
+        for (int x = 0; x < W; ++x)
+            printf("%3d ", h_out[y * W + x]);
+        printf("\n");
+    }
 
     cudaFree(d_in);
     cudaFree(d_out);
-}
-
-/* ---------- main (same I/O helpers) ---------- */
-int main(int argc, char **argv)
-{
-    const char *in_path  = "input.png";
-    const char *out_path = "output.png";
-    int kernel = (argc >= 2) ? atoi(argv[1]) : 3;
-
-    if (kernel < 1 || (kernel & 1) == 0) {
-        fprintf(stderr, "Kernel size must be a positive odd integer\n");
-        return 1;
-    }
-
-    int w, h;
-    uint8_t *input = load_grayscale_png(in_path, &w, &h);
-    if (!input) return 1;
-
-    uint8_t *output = malloc_output(w, h);
-    if (!output) { stbi_image_free(input); return 1; }
-
-    box_filter_gpu(input, output, w, h, kernel);
-
-    if (write_grayscale_png(out_path, output, w, h))
-        printf("✓ GPU wrote %s (%dx%d, %dx%d box)\n",
-               out_path, w, h, kernel, kernel);
-
-    free(output);
-    stbi_image_free(input);
     return 0;
 }
